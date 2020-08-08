@@ -1,35 +1,53 @@
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 
 
 class XmlCreatedObject:
-    def process_children(self,children):
+    def process_children(self, children):
         pass
 
 
-def _parse(xml, cls):
-    if xml.tag not in cls.keys():
-        raise ValueError('Unknown tag encountered! Provided classes did not match the tag ' + str(xml.tag))
-    instance = cls[xml.tag]()
+class XmlCreatedObjectFactory:
+    def keys(self):
+        pass
+
+    def create(self, xml_tag):
+        pass
+
+
+def _parse(xml, factory):
+    if xml.tag not in factory.keys():
+        raise ValueError('Unknown tag encountered! Provided factory keys did not match the tag ' + str(xml.tag))
+    instance = factory.create(xml.tag)
     att = [a for a in dir(instance) if not a.startswith('__') and not callable(getattr(instance, a))]
     for a in att:
         if a in xml.attrib.keys():
             instance.__dict__[a] = xml.attrib[a]
-    children = []
-    for child in xml:
-        children.append(_parse(child, cls))
-    instance.process_children(children)
+    instance.process_children([_parse(child, factory) for child in xml])
     return instance
 
 
-def parse(path_to_xml, cls: dict = None):
-    for c in cls.values():
-        if not issubclass(c, XmlCreatedObject):
-            raise TypeError(str(c) + 'must inherit XmlCreatedObject!')
-    return _parse(ET.parse(path_to_xml).getroot(), cls)
+def parse(path_to_xml: str, factory, parser: ET.XMLParser = None):
+    if not path_to_xml.endswith('.xml'):
+        raise ValueError('The given path must point to a valid xml file!')
+    if factory is None:
+        raise ValueError('The given factory must not be null!')
+    if not isinstance(factory, XmlCreatedObjectFactory):
+        raise TypeError(str(factory) + 'must inherit XmlCreatedObjectFactory!')
+    try:
+        root = ET.parse(path_to_xml, parser=parser).getroot()
+    except ET.ParseError:
+        raise
+    return _parse(root, factory)
 
 
-def parse_string(xml_string, cls: dict = None):
-    for c in cls.values():
-        if not issubclass(c, XmlCreatedObject):
-            raise TypeError(str(c) + 'must inherit XmlCreatedObject!')
-    return _parse(ET.fromstring(xml_string), cls)
+def parse_string(xml_string, factory, parser: ET.XMLParser = None):
+    if factory is None:
+        raise ValueError('The given factory must not be null!')
+    if not isinstance(factory, XmlCreatedObjectFactory):
+        raise TypeError(str(factory) + 'must inherit XmlCreatedObjectFactory!')
+    try:
+        root = ET.fromstring(xml_string, parser=parser)
+    except ET.ParseError:
+        raise
+    return _parse(root, factory)
